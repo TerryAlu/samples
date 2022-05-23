@@ -8,33 +8,48 @@
 
 'use strict';
 
+let socket = io("http://118.150.23.0:7777");
+let isServer = false;
+
 let localConnection;
-let remoteConnection;
 let sendChannel;
 let receiveChannel;
 const dataChannelSend = document.querySelector('textarea#dataChannelSend');
 const dataChannelReceive = document.querySelector('textarea#dataChannelReceive');
-const startButton = document.querySelector('button#startButton');
+const startClientButton = document.querySelector('button#startClientButton');
+const startServerButton = document.querySelector('button#startServerButton');
 const sendButton = document.querySelector('button#sendButton');
 const closeButton = document.querySelector('button#closeButton');
 
-startButton.onclick = createConnection;
+startClientButton.onclick = createClientConnection;
+startServerButton.onclick = createServerConnection;
 sendButton.onclick = sendData;
 closeButton.onclick = closeDataChannels;
 
 function enableStartButton() {
-  startButton.disabled = false;
+  startClientButton.disabled = false;
+  startServerButton.disabled = false;
 }
 
 function disableSendButton() {
   sendButton.disabled = true;
 }
 
-function createConnection() {
+function createClientConnection() {
+  isServer = false;
   dataChannelSend.placeholder = '';
-  const servers = null;
+  //const servers = null;
+  const servers = {
+    "iceServers": [
+      {"url": "stun:stun.l.google.com:19302"}
+    ]
+  };
+  console.log("alu: ", servers);
   window.localConnection = localConnection = new RTCPeerConnection(servers);
   console.log('Created local peer connection object localConnection');
+  localConnection.onconnectionstatechange = event => { console.log("ALU: ", localConnection.connectionState); };
+  registerRecvAnswer();
+  registerIce();
 
   sendChannel = localConnection.createDataChannel('sendDataChannel');
   console.log('Created send data channel');
@@ -45,19 +60,37 @@ function createConnection() {
   sendChannel.onopen = onSendChannelStateChange;
   sendChannel.onclose = onSendChannelStateChange;
 
-  window.remoteConnection = remoteConnection = new RTCPeerConnection(servers);
-  console.log('Created remote peer connection object remoteConnection');
-
-  remoteConnection.onicecandidate = e => {
-    onIceCandidate(remoteConnection, e);
-  };
-  remoteConnection.ondatachannel = receiveChannelCallback;
-
   localConnection.createOffer().then(
-      gotDescription1,
+      offerDesc,
       onCreateSessionDescriptionError
   );
-  startButton.disabled = true;
+  startClientButton.disabled = true;
+  closeButton.disabled = false;
+}
+
+function createServerConnection() {
+  isServer = false;
+  dataChannelSend.placeholder = '';
+  //const servers = null;
+  const servers = {
+    "iceServers": [
+      {"url": "stun:stun.l.google.com:19302"}
+    ]
+  };
+  console.log("alu: ", servers);
+  window.localConnection = localConnection = new RTCPeerConnection(servers);
+  console.log('Created local peer connection object localConnection');
+  localConnection.onconnectionstatechange = event => { console.log("ALU: ", localConnection.connectionState); };
+  registerRecvOffer();
+  registerIce();
+
+  localConnection.onicecandidate = e => {
+    onIceCandidate(localConnection, e);
+  };
+  localConnection.ondatachannel = receiveChannelCallback;
+
+
+  startServerButton.disabled = true;
   closeButton.disabled = false;
 }
 
@@ -78,11 +111,8 @@ function closeDataChannels() {
   receiveChannel.close();
   console.log('Closed data channel with label: ' + receiveChannel.label);
   localConnection.close();
-  remoteConnection.close();
   localConnection = null;
-  remoteConnection = null;
   console.log('Closed peer connections');
-  startButton.disabled = false;
   sendButton.disabled = true;
   closeButton.disabled = true;
   dataChannelSend.value = '';
@@ -92,38 +122,60 @@ function closeDataChannels() {
   enableStartButton();
 }
 
-function gotDescription1(desc) {
+// client
+function offerDesc(desc) {
   localConnection.setLocalDescription(desc);
   console.log(`Offer from localConnection\n${desc.sdp}`);
-  remoteConnection.setRemoteDescription(desc);
-  remoteConnection.createAnswer().then(
-      gotDescription2,
-      onCreateSessionDescriptionError
-  );
+  socket.emit('web_desc', desc);
 }
 
-function gotDescription2(desc) {
-  remoteConnection.setLocalDescription(desc);
-  console.log(`Answer from remoteConnection\n${desc.sdp}`);
-  localConnection.setRemoteDescription(desc);
+// server
+function registerRecvOffer() {
+  socket.on('web_desc', function(desc) {
+    console.log('recv web_desc: ');
+    console.log(desc);
+    localConnection.setRemoteDescription(desc);
+    localConnection.createAnswer().then(
+        offerAnswer,
+        onCreateSessionDescriptionError
+    );
+  });
 }
 
-function getOtherPc(pc) {
-  return (pc === localConnection) ? remoteConnection : localConnection;
+// server
+function offerAnswer(desc) {
+  localConnection.setLocalDescription(desc);
+  console.log(`Answer from serverConnection\n${desc.sdp}`);
+  socket.emit('server_desc', desc);
+  //localConnection.setRemoteDescription(desc);
 }
 
-function getName(pc) {
-  return (pc === localConnection) ? 'localPeerConnection' : 'remotePeerConnection';
+// client
+function registerRecvAnswer() {
+  socket.on('server_desc', function(desc) {
+    console.log('recv server_desc: ');
+    console.log(desc);
+    localConnection.setRemoteDescription(desc);
+  });
 }
 
 function onIceCandidate(pc, event) {
-  getOtherPc(pc)
-      .addIceCandidate(event.candidate)
-      .then(
-          onAddIceCandidateSuccess,
-          onAddIceCandidateError
-      );
-  console.log(`${getName(pc)} ICE candidate: ${event.candidate ? event.candidate.candidate : '(null)'}`);
+  socket.emit('ice', event.candidate);
+  console.log(`ICE candidate: ${event.candidate ? event.candidate.candidate : '(null)'}`);
+}
+
+// remote
+function registerIce() {
+  socket.on('ice', function(candidate) {
+    console.log('recv ice: ');
+    console.log(candidate);
+    localConnection
+        .addIceCandidate(candidate)
+        .then(
+            onAddIceCandidateSuccess,
+            onAddIceCandidateError
+        );
+  });
 }
 
 function onAddIceCandidateSuccess() {
@@ -134,6 +186,7 @@ function onAddIceCandidateError(error) {
   console.log(`Failed to add Ice Candidate: ${error.toString()}`);
 }
 
+// server
 function receiveChannelCallback(event) {
   console.log('Receive Channel Callback');
   receiveChannel = event.channel;
@@ -147,6 +200,7 @@ function onReceiveMessageCallback(event) {
   dataChannelReceive.value = event.data;
 }
 
+// client
 function onSendChannelStateChange() {
   const readyState = sendChannel.readyState;
   console.log('Send channel state is: ' + readyState);

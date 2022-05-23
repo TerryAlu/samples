@@ -37,7 +37,9 @@
         <span>Transmit text</span></h1>
 
     <div id="buttons">
-        <button id="startButton">Start</button>
+		<!--<button id="signalButton">Signal</button>-->
+        <button id="startClientButton">StartClient</button>
+        <button id="startServerButton">StartServer</button>
         <button id="sendButton" disabled>Send</button>
         <button id="closeButton" disabled>Stop</button>
     </div>
@@ -67,6 +69,7 @@
        title="View source for this page on GitHub" id="viewSource">View source on GitHub</a>
 </div>
 
+<script src="https://cdn.socket.io/4.5.0/socket.io.min.js" integrity="sha384-7EyYLQZgWBi67fBtVxw60/OWl1kjsfrPFcaU0pp0nAh+i8FD068QogUvg85Ewy1k" crossorigin="anonymous"></script>
 <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
 <script src="js/main.js" async></script>
 
