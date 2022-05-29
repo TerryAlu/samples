@@ -18,22 +18,27 @@ io.on('connection', (socket) => {
 	console.log('a user connected');
 	socket.on('desc', (msg) => {
 		console.log('on desc: ' + msg);
-		io.emit('desc', msg);
+		socket.broadcast.emit('desc', msg);
 	});
 
 	socket.on('web_desc', (msg) => {
 		console.log('on web_desc: ' + msg);
-		io.emit('web_desc', msg);
+		socket.broadcast.emit('web_desc', msg);
 	});
 
 	socket.on('server_desc', (msg) => {
 		console.log('on server_desc: ' + msg);
-		io.emit('server_desc', msg);
+		socket.broadcast.emit('server_desc', msg);
 	});
 
 	socket.on('ice', (msg) => {
 		console.log('on ice: ' + msg);
-		io.emit('ice', msg);
+		socket.broadcast.emit('ice', msg);
+	});
+
+	socket.on('test', (msg, ack) => {
+		console.log('test: ' + msg);
+		ack('my ack');
 	});
 });
 

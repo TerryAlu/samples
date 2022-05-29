@@ -47,7 +47,10 @@ function createClientConnection() {
   console.log("alu: ", servers);
   window.localConnection = localConnection = new RTCPeerConnection(servers);
   console.log('Created local peer connection object localConnection');
-  localConnection.onconnectionstatechange = event => { console.log("ALU: ", localConnection.connectionState); };
+  localConnection.onconnectionstatechange = event => { 
+	  console.log("ALU: ", localConnection.connectionState);
+	  console.log("ALU: ", event)
+  };
   registerRecvAnswer();
   registerIce();
 
